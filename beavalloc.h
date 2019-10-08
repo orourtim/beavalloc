@@ -23,6 +23,24 @@
 # define FALSE 0
 #endif // FALSE
 
+#define MIN_MEM 1024
+
+struct block
+{
+    size_t size;
+    int available;
+    struct block *prev;
+    struct block *next;
+};
+
+struct linked_list
+{
+    struct block *head;
+    struct block *tail;
+};
+
+static struct linked_list heap = {.head = NULL, .tail = NULL};
+
 // The basic memory allocator.
 // If you pass NULL or 0, then NULL is returned.
 // If, for some reason, the system cannot allocate the requested

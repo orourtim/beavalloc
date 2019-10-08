@@ -8,7 +8,26 @@
 
 void *beavalloc(size_t size)
 {
+    if (size == NULL) {
+        return NULL;
+    }
 
+    struct block *new = sbrk(MIN_MEM);
+
+    if (heap.head == NULL) {
+        new->next = NULL;
+        new->prev = NULL;
+        new->size = MIN_MEM;
+        new->available = TRUE;
+        heap.head = heap.tail = new;
+    }
+    else {
+        new->prev = heap.tail;
+        new->next = NULL;
+        new->size = MIN_MEM;
+        new->available = TRUE;
+        heap.tail = new;
+    }
 }
 
 void beavfree(void *ptr)
