@@ -24,6 +24,7 @@
 #endif // FALSE
 
 #define MIN_MEM 1024
+#define META_DATA (sizeof(struct block) - sizeof(struct block *) - sizeof(struct block *))
 
 
 struct block

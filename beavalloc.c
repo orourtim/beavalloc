@@ -11,10 +11,10 @@ static struct linked_list heap = {.head = NULL, .tail = NULL};
 
 void *beavalloc(size_t size)
 {
-    if (size == NULL) {
+    if (size == (size_t)NULL) {
         return NULL;
     }
-
+    
     if (brk_address == NULL) {
         brk_address = sbrk(0);
     }
@@ -23,7 +23,7 @@ void *beavalloc(size_t size)
 
     new->next = NULL;
     new->available = FALSE;
-    new->size = MIN_MEM - sizeof(size_t) - sizeof(int) - sizeof(struct block *) - sizeof(struct block *);
+    new->size = MIN_MEM - META_DATA;
     if (heap.head == NULL) {
         new->prev = NULL;
         heap.head = heap.tail = new;
@@ -33,12 +33,19 @@ void *beavalloc(size_t size)
         heap.tail = new;
     }
 
-    return new + sizeof(size_t) + sizeof(int) + sizeof(struct block *) + sizeof(struct block *);
+    return new + META_DATA;
 }
 
 void beavfree(void *ptr)
 {
-
+    struct block *curr = heap.head;
+    while (curr != NULL) {
+        if (curr == ptr - META_DATA) {
+            curr->available = TRUE;
+            return;
+        }
+        curr = curr->next;
+    }
 }
 
 void beavalloc_reset(void)
@@ -54,12 +61,12 @@ void beavalloc_set_verbose(uint8_t v)
 
 void *beavcalloc(size_t nmemb, size_t size)
 {
-
+    return NULL;
 }
 
 void *beavrealloc(void *ptr, size_t size)
 {
-
+    return NULL;
 }
 
 void beavalloc_dump(uint leaks_only)
