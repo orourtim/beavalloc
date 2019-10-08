@@ -25,6 +25,7 @@
 
 #define MIN_MEM 1024
 
+
 struct block
 {
     size_t size;
@@ -39,7 +40,6 @@ struct linked_list
     struct block *tail;
 };
 
-static struct linked_list heap = {.head = NULL, .tail = NULL};
 
 // The basic memory allocator.
 // If you pass NULL or 0, then NULL is returned.

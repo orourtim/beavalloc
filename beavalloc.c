@@ -6,28 +6,34 @@
 
 #include "beavalloc.h"
 
+static void *brk_address = NULL;
+static struct linked_list heap = {.head = NULL, .tail = NULL};
+
 void *beavalloc(size_t size)
 {
     if (size == NULL) {
         return NULL;
     }
 
+    if (brk_address == NULL) {
+        brk_address = sbrk(0);
+    }
+
     struct block *new = sbrk(MIN_MEM);
 
+    new->next = NULL;
+    new->available = FALSE;
+    new->size = MIN_MEM - sizeof(size_t) - sizeof(int) - sizeof(struct block *) - sizeof(struct block *);
     if (heap.head == NULL) {
-        new->next = NULL;
         new->prev = NULL;
-        new->size = MIN_MEM;
-        new->available = TRUE;
         heap.head = heap.tail = new;
     }
     else {
         new->prev = heap.tail;
-        new->next = NULL;
-        new->size = MIN_MEM;
-        new->available = TRUE;
         heap.tail = new;
     }
+
+    return new + sizeof(size_t) + sizeof(int) + sizeof(struct block *) + sizeof(struct block *);
 }
 
 void beavfree(void *ptr)
@@ -37,7 +43,8 @@ void beavfree(void *ptr)
 
 void beavalloc_reset(void)
 {
-
+    brk(brk_address);
+    brk_address = NULL;
 }
 
 void beavalloc_set_verbose(uint8_t v)
