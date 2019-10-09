@@ -13,6 +13,9 @@ static struct linked_list heap = {.head = NULL, .tail = NULL};
 static void *make_block(size_t size);
 static int free_block_exists(size_t size);
 static void *get_free_block(size_t size);
+static void coalesce_blocks(struct block *curr);
+static void coalesce_right(struct block *curr);
+static void coalesce_left(struct block *curr);
 
 void *beavalloc(size_t size)
 {
@@ -82,9 +85,8 @@ static void *get_free_block(size_t size)
 
             // If significant amount of extra memory, create another free block.
             if (curr->capacity - size > size) {
-                void *end = curr + sizeof(*curr);
-                end -= curr->capacity - size;
-                struct block *new_block = (struct block *)end;
+                struct block *new_block = curr + sizeof(*curr);
+                new_block -= curr->capacity - size;
                 new_block->size = 0;
                 new_block->free = TRUE;
                 new_block->prev = curr;
@@ -113,11 +115,52 @@ void beavfree(void *ptr)
             if (curr->data == ptr) {
                 curr->free = TRUE;
                 curr->size = 0;
+                if ( ((curr->prev != NULL) && (curr->prev->free == TRUE)) || ((curr->next != NULL) && (curr->next->free == TRUE)) ) {
+                    coalesce_blocks(curr);
+                }
                 return;
             }
             curr = curr->next;
         }
     }
+}
+
+static void coalesce_blocks(struct block * curr)
+{
+    if ( (curr->prev != NULL && curr->prev->free == TRUE) && (curr->next != NULL && curr->next->free == TRUE) ) {   // Coalesce left and right.
+        coalesce_right(curr);
+        coalesce_left(curr);
+    }
+    else if (curr->prev != NULL && curr->prev->free == TRUE) {                                                      // Coalesce left.
+        coalesce_left(curr);
+    }
+    else if (curr->next != NULL && curr->next->free == TRUE) {                                                      // Coalesce right.
+        coalesce_right(curr);
+    }
+}
+
+static void coalesce_right(struct block *curr)
+{
+    if (curr->next->next == NULL) {
+        heap.tail = curr;
+    }
+    else {
+        curr->next->next->prev = curr;
+    }
+    curr->capacity += curr->next->capacity + META_DATA;
+    curr->next = curr->next->next;
+}
+
+static void coalesce_left(struct block *curr)
+{
+    if (curr->next == NULL) {
+        heap.tail = curr->prev;
+    }
+    else {
+        curr->next->prev = curr->prev;
+    }
+    curr->prev->capacity += curr->capacity + META_DATA;
+    curr->prev->next = curr->next;
 }
 
 void beavalloc_reset(void)
