@@ -23,16 +23,18 @@
 # define FALSE 0
 #endif // FALSE
 
-#define MIN_MEM 1024
-#define META_DATA (sizeof(struct block) - sizeof(struct block *) - sizeof(struct block *))
+#define MIN_MEM     1024
+#define META_DATA   (sizeof(struct block) - sizeof(void *))
 
 
 struct block
 {
     size_t size;
-    int available;
+    size_t capacity;
+    int free;
     struct block *prev;
     struct block *next;
+    void *data;
 };
 
 struct linked_list
