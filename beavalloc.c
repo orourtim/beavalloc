@@ -45,7 +45,7 @@ static void *make_block(size_t size)
     size_t bytes = determine_needed_bytes(size);
     struct block *new = sbrk(bytes);
     
-    upper_mem_bound = new->data + new->capacity;
+    upper_mem_bound = new + bytes - META_DATA;
     
     new->next = NULL;
     new->free = FALSE;
@@ -61,7 +61,7 @@ static void *make_block(size_t size)
         heap.tail = new;
     }
 
-    new->data = new + META_DATA;
+    new->data = new + 1;
     return new->data;
 }
 
