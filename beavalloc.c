@@ -11,6 +11,7 @@ static void *upper_mem_bound = NULL;
 static struct linked_list heap = {.head = NULL, .tail = NULL};
 
 static void *make_block(size_t size);
+static size_t determine_needed_bytes(size_t size);
 static int free_block_exists(size_t size);
 static void *get_free_block(size_t size);
 static void coalesce_blocks(struct block *curr);
@@ -41,14 +42,15 @@ void *beavalloc(size_t size)
 
 static void *make_block(size_t size)
 {
-    struct block *new = sbrk(MIN_MEM);
+    size_t bytes = determine_needed_bytes(size);
+    struct block *new = sbrk(bytes);
     
-    upper_mem_bound = new + sizeof(*new);
-
+    upper_mem_bound = new->data + new->capacity;
+    
     new->next = NULL;
     new->free = FALSE;
     new->size = size;
-    new->capacity = MIN_MEM - META_DATA;
+    new->capacity = bytes - META_DATA;
     if (heap.head == NULL) {
         new->prev = NULL;
         heap.head = heap.tail = new;
@@ -61,6 +63,16 @@ static void *make_block(size_t size)
 
     new->data = new + META_DATA;
     return new->data;
+}
+
+static size_t determine_needed_bytes(size_t size)
+{
+    int remainder = (size + META_DATA) % MIN_MEM;
+    int multiplier = (size + META_DATA) / MIN_MEM;
+    if (remainder) {
+        multiplier++;
+    }
+    return MIN_MEM * multiplier;
 }
 
 static int free_block_exists(size_t size)
