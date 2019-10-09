@@ -10,17 +10,36 @@ static void *lower_mem_bound = NULL;
 static void *upper_mem_bound = NULL;
 static struct linked_list heap = {.head = NULL, .tail = NULL};
 
+static void *make_block(size_t size);
+static int free_block_exists(size_t size);
+static void *get_free_block(size_t size);
+
 void *beavalloc(size_t size)
 {
+    void *data = NULL;
     if (size == (size_t)NULL) {
         return NULL;
     }
-    
+
     if (lower_mem_bound == NULL) {
         lower_mem_bound = sbrk(0);
     }
 
+    // Check for free block.
+    if (free_block_exists(size)) {
+        data = get_free_block(size);
+    }
+    else { // If no free block, sbrk.
+        data = make_block(size);
+    }
+
+    return data;
+}
+
+static void *make_block(size_t size)
+{
     struct block *new = sbrk(MIN_MEM);
+    
     upper_mem_bound = new + sizeof(*new);
 
     new->next = NULL;
@@ -39,6 +58,48 @@ void *beavalloc(size_t size)
 
     new->data = new + META_DATA;
     return new->data;
+}
+
+static int free_block_exists(size_t size)
+{
+    struct block *curr = heap.head;
+    while (curr != NULL) {
+        if (curr->free && (curr->capacity - size > 0)) {
+            return TRUE;
+        }
+        curr = curr->next;
+    }
+    return FALSE;
+}
+
+static void *get_free_block(size_t size)
+{
+    struct block *curr = heap.head;
+    while (curr != NULL) {
+        if (curr->free && (curr->capacity - size > 0)) {
+            curr->free = FALSE;
+            curr->size = size;
+
+            // If significant amount of extra memory, create another free block.
+            if (curr->capacity - size > size) {
+                void *end = curr + sizeof(*curr);
+                end -= curr->capacity - size;
+                struct block *new_block = (struct block *)end;
+                new_block->size = 0;
+                new_block->free = TRUE;
+                new_block->prev = curr;
+                new_block->next = curr->next;
+                curr->next = new_block;
+                new_block->capacity = curr->capacity - size - META_DATA;
+                curr->capacity = size;
+                new_block->data = new_block + META_DATA;
+            }
+            else {
+                return curr->data;
+            }
+        }
+    }
+    return NULL;
 }
 
 void beavfree(void *ptr)
