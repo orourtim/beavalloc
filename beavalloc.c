@@ -45,7 +45,7 @@ static void *make_block(size_t size)
     size_t bytes = determine_needed_bytes(size);
     struct block *new = sbrk(bytes);
     
-    upper_mem_bound = new + bytes - META_DATA;
+    upper_mem_bound = sbrk(0);
     
     new->next = NULL;
     new->free = FALSE;
@@ -97,21 +97,28 @@ static void *get_free_block(size_t size)
 
             // If significant amount of extra memory, create another free block.
             if (curr->capacity - size > size) {
-                struct block *new_block = curr + sizeof(*curr);
-                new_block -= curr->capacity - size;
+                struct block *new_block = NULL;
+                char *block_finder = (char *)curr;
+
+                block_finder += META_DATA + size;
+                new_block = (struct block *)block_finder;
+                
                 new_block->size = 0;
+                new_block->capacity = curr->capacity - size - META_DATA;
                 new_block->free = TRUE;
                 new_block->prev = curr;
                 new_block->next = curr->next;
+                new_block->data = new_block + 1;
+
                 curr->next = new_block;
-                new_block->capacity = curr->capacity - size - META_DATA;
+                curr->size = size;
                 curr->capacity = size;
-                new_block->data = new_block + META_DATA;
             }
             else {
                 return curr->data;
             }
         }
+        curr = curr->next;
     }
     return NULL;
 }
