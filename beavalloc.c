@@ -10,6 +10,8 @@ static void *lower_mem_bound = NULL;
 static void *upper_mem_bound = NULL;
 static struct linked_list heap = {.head = NULL, .tail = NULL};
 
+static uint8_t DEBUG = FALSE;
+
 static void *make_block(size_t size);
 static size_t determine_needed_bytes(size_t size);
 static int free_block_exists(size_t size);
@@ -17,6 +19,7 @@ static void *get_free_block(size_t size);
 static void coalesce_blocks(struct block *curr);
 static void coalesce_right(struct block *curr);
 static void coalesce_left(struct block *curr);
+static void diagnostic_message(const char *message);
 
 void *beavalloc(size_t size)
 {
@@ -193,17 +196,52 @@ void beavalloc_reset(void)
 
 void beavalloc_set_verbose(uint8_t v)
 {
-
+    DEBUG = v;
 }
 
 void *beavcalloc(size_t nmemb, size_t size)
 {
-    return NULL;
+    void *data = NULL;
+    if (nmemb == 0 || size == 0)
+        return NULL;
+
+    data = beavalloc(nmemb * size);
+    memset(data, 0, nmemb * size);
+    return data;
 }
 
 void *beavrealloc(void *ptr, size_t size)
 {
-    return NULL;
+    void *new_data = NULL;
+    struct block *ptr_block = NULL;
+    struct block *curr = NULL;
+
+    if (size == (size_t)NULL)
+        return NULL;
+
+    if (ptr == NULL) {
+        new_data = beavalloc(size * 2);
+    }
+    else {
+        for (curr = heap.head; curr != NULL; curr = curr->next) {
+            if (curr->data == ptr) {
+                ptr_block = curr;
+            }
+        }
+
+        if (ptr_block->capacity >= size) {
+            ptr_block->size = size;
+            new_data = ptr_block->data;
+        }
+        else { // new block
+            new_data = beavalloc(size);
+            memcpy(new_data, ptr, ptr_block->size);
+            beavfree(ptr);
+        }
+        
+    }
+    
+    return new_data;
 }
 
 void beavalloc_dump(uint leaks_only)
@@ -302,4 +340,9 @@ void beavalloc_dump(uint leaks_only)
                , lower_mem_bound, upper_mem_bound
             );
     }
+}
+
+static void diagnostic_message(const char *message)
+{
+    fprintf(stderr, message);
 }
