@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <string.h>
 
 #ifndef __BEAVALLOC_H

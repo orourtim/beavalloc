@@ -14,8 +14,10 @@ static uint8_t DEBUG = FALSE;
 
 static void *make_block(size_t size);
 static size_t determine_needed_bytes(size_t size);
+static void initialize_new_block(struct block *new, size_t size, size_t bytes);
 static int free_block_exists(size_t size);
 static void *get_free_block(size_t size);
+static void split_free_block(struct block *curr, size_t size);
 static void coalesce_blocks(struct block *curr);
 static void coalesce_right(struct block *curr);
 static void coalesce_left(struct block *curr);
@@ -25,18 +27,19 @@ void *beavalloc(size_t size)
 {
     void *data = NULL;
     if (size == (size_t)NULL) {
+        if (DEBUG) { diagnostic_message("beavalloc: size = NULL"); }
         return NULL;
     }
 
     if (lower_mem_bound == NULL) {
+        if (DEBUG) { diagnostic_message("beavalloc: base memory location set"); }
         lower_mem_bound = sbrk(0);
     }
 
-    // Check for free block.
     if (free_block_exists(size)) {
         data = get_free_block(size);
     }
-    else { // If no free block, sbrk.
+    else {
         data = make_block(size);
     }
 
@@ -47,13 +50,44 @@ static void *make_block(size_t size)
 {
     size_t bytes = determine_needed_bytes(size);
     struct block *new = sbrk(bytes);
+
+    if (DEBUG) { diagnostic_message("making new block..."); }
+
+    if (new == (void *)-1) {
+        if (DEBUG) { diagnostic_message("failed to allocate memory"); }
+        errno = ENOMEM;
+        return NULL;
+    }
     
     upper_mem_bound = sbrk(0);
     
+    initialize_new_block(new, size, bytes);
+    
+    if (DEBUG) { diagnostic_message("new block made!"); }
+    return new->data;
+}
+
+static size_t determine_needed_bytes(size_t size)
+{
+    int remainder = (size + META_DATA) % MIN_MEM;
+    int multiplier = (size + META_DATA) / MIN_MEM;
+    if (remainder) {
+        multiplier++;
+    }
+
+    if (DEBUG) { diagnostic_message("determing number of bytes required..."); }
+    
+    return MIN_MEM * multiplier;
+}
+
+static void initialize_new_block(struct block *new, size_t size, size_t bytes)
+{
+    if (DEBUG) { diagnostic_message("initializing new block..."); }
     new->next = NULL;
     new->free = FALSE;
     new->size = size;
     new->capacity = bytes - META_DATA;
+
     if (heap.head == NULL) {
         new->prev = NULL;
         heap.head = heap.tail = new;
@@ -65,17 +99,6 @@ static void *make_block(size_t size)
     }
 
     new->data = new + 1;
-    return new->data;
-}
-
-static size_t determine_needed_bytes(size_t size)
-{
-    int remainder = (size + META_DATA) % MIN_MEM;
-    int multiplier = (size + META_DATA) / MIN_MEM;
-    if (remainder) {
-        multiplier++;
-    }
-    return MIN_MEM * multiplier;
 }
 
 static int free_block_exists(size_t size)
@@ -83,6 +106,7 @@ static int free_block_exists(size_t size)
     struct block *curr = heap.head;
     while (curr != NULL) {
         if (curr->free && (curr->capacity - size > 0)) {
+            if (DEBUG) { diagnostic_message("free block exists!"); }
             return TRUE;
         }
         curr = curr->next;
@@ -98,37 +122,47 @@ static void *get_free_block(size_t size)
             curr->free = FALSE;
             curr->size = size;
 
-            // If significant amount of extra memory, create another free block.
+            // If significant amount of extra memory, split into another free block.
             if (curr->capacity - size > size) {
-                struct block *new_block = NULL;
-                char *block_finder = (char *)curr;
-
-                block_finder += META_DATA + size;
-                new_block = (struct block *)block_finder;
-                
-                new_block->size = 0;
-                new_block->capacity = curr->capacity - size - META_DATA;
-                new_block->free = TRUE;
-                new_block->prev = curr;
-                new_block->next = curr->next;
-                new_block->data = new_block + 1;
-
-                curr->next = new_block;
-                curr->size = size;
-                curr->capacity = size;
+                split_free_block(curr, size);
             }
-            else {
-                return curr->data;
-            }
+
+            return curr->data;
         }
         curr = curr->next;
     }
     return NULL;
 }
 
+static void split_free_block(struct block *curr, size_t size)
+{
+    struct block *new_block = NULL;
+    char *block_finder = (char *)curr;
+
+    block_finder += META_DATA + size;
+    new_block = (struct block *)block_finder;
+
+    new_block->size = 0;
+    new_block->capacity = curr->capacity - size - META_DATA;
+    new_block->free = TRUE;
+    new_block->prev = curr;
+    new_block->next = curr->next;
+    new_block->data = new_block + 1;
+
+    curr->next = new_block;
+    curr->size = size;
+    curr->capacity = size;
+
+    if (new_block->next == NULL)
+        heap.tail = new_block;
+
+    if (DEBUG) { diagnostic_message("free block split!"); }
+}
+
 void beavfree(void *ptr)
 {
     if (ptr == NULL) {
+        if (DEBUG) { diagnostic_message("beavfree: NULL pointer passed"); }
         return;
     }
     else {
@@ -137,7 +171,11 @@ void beavfree(void *ptr)
             if (curr->data == ptr) {
                 curr->free = TRUE;
                 curr->size = 0;
+
+                if (DEBUG) { diagnostic_message("beavfree: memory block freed!"); }
+
                 if ( ((curr->prev != NULL) && (curr->prev->free == TRUE)) || ((curr->next != NULL) && (curr->next->free == TRUE)) ) {
+                    if (DEBUG) { diagnostic_message("coalescing free blocks..."); }
                     coalesce_blocks(curr);
                 }
                 return;
@@ -163,6 +201,7 @@ static void coalesce_blocks(struct block * curr)
 
 static void coalesce_right(struct block *curr)
 {
+    if (DEBUG) { diagnostic_message("coalesce right..."); }
     if (curr->next->next == NULL) {
         heap.tail = curr;
     }
@@ -175,6 +214,7 @@ static void coalesce_right(struct block *curr)
 
 static void coalesce_left(struct block *curr)
 {
+    if (DEBUG) { diagnostic_message("coalesce left..."); }
     if (curr->next == NULL) {
         heap.tail = curr->prev;
     }
@@ -192,6 +232,8 @@ void beavalloc_reset(void)
     upper_mem_bound = NULL;
     heap.head = NULL;
     heap.tail = NULL;
+
+    if (DEBUG) { diagnostic_message("heap reset!"); }
 }
 
 void beavalloc_set_verbose(uint8_t v)
@@ -223,17 +265,24 @@ void *beavrealloc(void *ptr, size_t size)
         new_data = beavalloc(size * 2);
     }
     else {
-        for (curr = heap.head; curr != NULL; curr = curr->next) {
+        for (curr = heap.head; curr != NULL; curr = curr->next) {   // Find block that owns this data.
             if (curr->data == ptr) {
                 ptr_block = curr;
             }
         }
 
-        if (ptr_block->capacity >= size) {
+        if (ptr_block == NULL) {
+            if (DEBUG) { diagnostic_message("beavrealloc: invalid address given"); }
+            return NULL;
+        }
+
+        if (ptr_block->capacity >= size) {  // Can just decrease used space.
+            if (DEBUG) { diagnostic_message("beavrealloc: decreasing used space of block..."); }
             ptr_block->size = size;
             new_data = ptr_block->data;
         }
-        else { // new block
+        else {                              // Allocate new block.
+            if (DEBUG) { diagnostic_message("beavrealloc: allocating new block..."); }
             new_data = beavalloc(size);
             memcpy(new_data, ptr, ptr_block->size);
             beavfree(ptr);
@@ -345,4 +394,5 @@ void beavalloc_dump(uint leaks_only)
 static void diagnostic_message(const char *message)
 {
     fprintf(stderr, message);
+    fprintf(stderr, "\n");
 }
